@@ -108,8 +108,20 @@ class WeldGeometricInspector:
         Returns:
             Dict[str, Any]: Diagnóstico dimensional, métricas e máscaras.
         """
+        altura_orig, largura_orig = imagem_bgr.shape[:2]
+        fator_escala = (
+            400.0 / float(largura_orig) if largura_orig != 400 else 1.0
+        )
+        if fator_escala != 1.0:
+            h_proc = int(round(altura_orig * fator_escala))
+            imagem_trabalho = cv2.resize(
+                imagem_bgr, (400, h_proc), interpolation=cv2.INTER_AREA
+            )
+        else:
+            imagem_trabalho = imagem_bgr
+
         # 1. Filtro de nitidez
-        nitida = self.aplicar_filtro_nitidez(imagem_bgr)
+        nitida = self.aplicar_filtro_nitidez(imagem_trabalho)
 
         # 2. Conversão para tons de cinza e suavização
         cinza = cv2.cvtColor(nitida, cv2.COLOR_BGR2GRAY)
@@ -126,6 +138,9 @@ class WeldGeometricInspector:
         anotada = imagem_bgr.copy()
 
         if not contornos:
+            mascara_nula = cv2.resize(
+                bordas, (largura_orig, altura_orig), interpolation=cv2.INTER_NEAREST
+            )
             return {
                 "aprovado": False,
                 "motivo": "Nenhum contorno identificado na junta soldada",
@@ -133,58 +148,90 @@ class WeldGeometricInspector:
                 "descontinuidade": True,
                 "largura_media_px": 0.0,
                 "comprimento_cordao_px": 0.0,
-                "mascara_bordas": bordas,
+                "mascara_bordas": mascara_nula,
                 "imagem_anotada": anotada,
             }
 
-        # Identificação de microporosidades internas
+        # Identificação de microporosidades internas (cavidades escuras e circulares)
         poros_identificados: List[Tuple[float, Tuple[int, int]]] = []
         caixas_poros: List[Tuple[int, int]] = []
 
         for c in contornos:
             area = float(cv2.contourArea(c))
             if self.min_area_poro_px <= area <= self.max_area_poro_px:
-                (x, y), raio = cv2.minEnclosingCircle(c)
-                pt = (int(x), int(y))
-                # Evita duplicar anéis internos do Canny
-                if not any(
-                    abs(pt[0] - px) < 5 and abs(pt[1] - py) < 5
-                    for px, py in caixas_poros
-                ):
-                    caixas_poros.append(pt)
-                    poros_identificados.append((area, pt))
-                    cv2.circle(anotada, pt, int(raio) + 3, (0, 0, 255), 2)
+                peri = cv2.arcLength(c, True)
+                circ = (
+                    (4.0 * np.pi * area) / (peri * peri)
+                    if peri > 0.0
+                    else 0.0
+                )
+                if circ >= 0.38:
+                    mask_poro = np.zeros(cinza.shape, dtype=np.uint8)
+                    cv2.drawContours(mask_poro, [c], -1, 255, -1)
+                    lum_media = cv2.mean(cinza, mask=mask_poro)[0]
+                    if lum_media < 90.0:
+                        (x, y), raio = cv2.minEnclosingCircle(c)
+                        pt = (int(x), int(y))
+                        if not any(
+                            abs(pt[0] - px) < 6 and abs(pt[1] - py) < 6
+                            for px, py in caixas_poros
+                        ):
+                            caixas_poros.append(pt)
+                            poros_identificados.append((area, pt))
+                            pt_orig = (
+                                int(round(x / fator_escala)),
+                                int(round(y / fator_escala)),
+                            )
+                            r_orig = int(round(raio / fator_escala))
+                            cv2.circle(
+                                anotada, pt_orig, r_orig + 4, (0, 0, 255), 2
+                            )
 
         # Identificação de descontinuidades na geometria contínua do cordão
-        segmentos_cordao = self._deduplicar_segmentos_cordao(contornos)
+        segmentos_cordao = self._deduplicar_segmentos_cordao(
+            contornos, min_area=1500.0
+        )
+        if not segmentos_cordao:
+            kernel_fusao = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 7))
+            bordas_fundidas = cv2.morphologyEx(
+                bordas, cv2.MORPH_CLOSE, kernel_fusao
+            )
+            contornos_fundidos, _ = cv2.findContours(
+                bordas_fundidas, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            segmentos_cordao = self._deduplicar_segmentos_cordao(
+                contornos_fundidos, min_area=1000.0
+            )
 
         descontinuidade = False
         largura_media = 0.0
         comprimento_total = 0.0
 
         if len(segmentos_cordao) > 1:
-            # Fragmentação do cordão de solda (interrupção de arco/descontinuidade)
             descontinuidade = True
-            maior = max(segmentos_cordao, key=cv2.contourArea)
+            maior = segmentos_cordao[0]
             _, _, w, h = cv2.boundingRect(maior)
-            comprimento_total = float(max(w, h))
-            largura_media = float(min(w, h))
+            comprimento_total = float(max(w, h)) / fator_escala
+            largura_media = float(min(w, h)) / fator_escala
             for seg in segmentos_cordao:
-                cv2.drawContours(anotada, [seg], -1, (0, 0, 255), 2)
+                seg_rescaled = (seg / fator_escala).astype(np.int32)
+                cv2.drawContours(anotada, [seg_rescaled], -1, (0, 0, 255), 2)
         elif len(segmentos_cordao) == 1:
             maior = segmentos_cordao[0]
             _, _, w, h = cv2.boundingRect(maior)
-            comprimento_total = float(max(w, h))
-            largura_media = float(min(w, h))
+            comprimento_total = float(max(w, h)) / fator_escala
+            largura_media = float(min(w, h)) / fator_escala
 
             if (
-                comprimento_total < self.min_comprimento_cordao_px
-                or largura_media < self.min_largura_cordao_px
+                comprimento_total * fator_escala < self.min_comprimento_cordao_px
+                or largura_media * fator_escala < self.min_largura_cordao_px
             ):
                 descontinuidade = True
-                cv2.drawContours(anotada, [maior], -1, (0, 0, 255), 2)
+                seg_rescaled = (maior / fator_escala).astype(np.int32)
+                cv2.drawContours(anotada, [seg_rescaled], -1, (0, 0, 255), 2)
             else:
-                cv2.drawContours(anotada, [maior], -1, (0, 255, 0), 2)
+                seg_rescaled = (maior / fator_escala).astype(np.int32)
+                cv2.drawContours(anotada, [seg_rescaled], -1, (0, 255, 0), 2)
         else:
             descontinuidade = True
 
@@ -199,20 +246,20 @@ class WeldGeometricInspector:
             motivos.append(f"Excesso de microporos ({total_poros} detectados)")
         if descontinuidade:
             motivos.append("Descontinuidade ou largura inadequada no cordao")
+        if not motivos:
+            motivos.append("Cordao de solda conforme parametros nominais")
 
-        motivo_final = (
-            "Cordao conforme com especificacao"
-            if aprovado
-            else " | ".join(motivos)
+        mascara_completa = cv2.resize(
+            bordas, (largura_orig, altura_orig), interpolation=cv2.INTER_NEAREST
         )
 
         return {
             "aprovado": aprovado,
-            "motivo": motivo_final,
+            "motivo": " | ".join(motivos),
             "total_poros": total_poros,
             "descontinuidade": descontinuidade,
-            "largura_media_px": round(largura_media, 2),
-            "comprimento_cordao_px": round(comprimento_total, 2),
-            "mascara_bordas": bordas,
+            "largura_media_px": round(largura_media, 1),
+            "comprimento_cordao_px": round(comprimento_total, 1),
+            "mascara_bordas": mascara_completa,
             "imagem_anotada": anotada,
         }
