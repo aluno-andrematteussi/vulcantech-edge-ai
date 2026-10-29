@@ -46,6 +46,7 @@ htmlcov/
 *.swo
 .DS_Store
 Thumbs.db
+scratch/
 
 # Large artifacts (keep track of gitignore, allow raw sample data if needed)
 data/processed/*.parquet

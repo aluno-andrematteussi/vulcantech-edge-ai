@@ -83,6 +83,9 @@ vulcantech-edge-ai/
 │   │   ├── __init__.py
 │   │   ├── app.py                               # FastAPI assíncrono com malha fechada
 │   │   └── schemas.py                           # Validação de limites físicos (Pydantic)
+│   ├── dashboard/
+│   │   ├── __init__.py
+│   │   └── app.py                               # Cockpit Streamlit de IA de Borda, MLOps e CVOps
 │   ├── data_pipeline/
 │   │   ├── __init__.py
 │   │   ├── feature_engineering.py               # IEM, normalização por lote e rolling
@@ -100,6 +103,7 @@ vulcantech-edge-ai/
 ├── tests/
 │   ├── __init__.py
 │   ├── test_api.py                              # Testes de integração da API e limites
+│   ├── test_dashboard.py                        # Testes de integração e cache do dashboard
 │   ├── test_data_pipeline.py                    # Testes de saneamento e IEM
 │   ├── test_ml.py                               # Testes de modelos, OEE e Recall
 │   └── test_vision.py                           # Testes de inspeção óptica e termografia
@@ -279,13 +283,19 @@ pip install -r requirements.txt
 ```powershell
 pytest -v
 ```
-*Garante a execução dos **21 testes unitários** automatizados cobrindo pipeline de dados, machine learning, visão computacional e rotas da API.*
+*Garante a execução dos **24 testes unitários** automatizados cobrindo pipeline de dados, machine learning, visão computacional, microsserviço RESTful e dashboard executivo.*
 
 ### 8.3. Inicialização da API Local
 ```powershell
 uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 Acesse a documentação interativa Swagger em: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 8.4. Inicialização do Dashboard Executivo (Streamlit)
+```powershell
+streamlit run src/dashboard/app.py
+```
+*Cockpit operacional completo com telemetria das 4 células, simulador Edge em malha fechada, CVOps interativo com OpenCV e laudos regulatórios em: [http://localhost:8501](http://localhost:8501)*
 
 ---
 
