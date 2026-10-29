@@ -76,7 +76,9 @@ def gerar_amostras_soldagem() -> None:
     cv2.imwrite(str(dir_therm / "termografia_haz_critica.png"), therm_critica)
 
     print(
-        f"Amostras de visao geradas com sucesso em:\n- {dir_geom}\n- {dir_therm}"
+        "Amostras de visao geradas com sucesso em:\n"
+        "- data/raw/vision/geometric\n"
+        "- data/raw/vision/thermal"
     )
 
 
