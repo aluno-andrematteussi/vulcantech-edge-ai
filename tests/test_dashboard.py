@@ -38,3 +38,4 @@ def test_alinhar_features_para_modelo() -> None:
     assert df_alinhado.iloc[0]["feature_a"] == 10.5
     assert df_alinhado.iloc[0]["feature_b"] == 0.0
     assert df_alinhado.iloc[0]["feature_c"] == 0.0
+

@@ -104,6 +104,17 @@ class IndustrialOEECalculator:
             "nivel_risco": dados_falha["risco"],
         }
 
+    def calcular_oee_preditivo(self, classe_falha: int) -> Dict[str, Any]:
+        """Calcula o OEE predito (alias de conformidade operacional).
+
+        Args:
+            classe_falha: Código inteiro do modo de falha (0, 1, 2 ou 3).
+
+        Returns:
+            Dict[str, Any]: Indicadores de OEE e comando CLP.
+        """
+        return self.calcular_oee_instancia(classe_falha)
+
     def simular_impacto_lote(
         self, predicoes: pd.Series
     ) -> Dict[str, Any]:

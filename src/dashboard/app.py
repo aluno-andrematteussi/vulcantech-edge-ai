@@ -587,7 +587,7 @@ def tela_visao_geral(
                 })
             st.dataframe(
                 pd.DataFrame(linhas),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
             )
         st.markdown("</div>", unsafe_allow_html=True)
@@ -835,7 +835,7 @@ def tela_engenharia_dados(df_raw: pd.DataFrame, df_proc: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
     if not df_cel.empty:
-        st.dataframe(df_cel.head(10), use_container_width=True)
+        st.dataframe(df_cel.head(10), width='stretch')
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -908,7 +908,10 @@ def tela_modelagem_ml(df_proc: pd.DataFrame, artefatos: Dict[str, Any]) -> None:
             X_test = X.iloc[split_idx:]
             y_test = y.iloc[split_idx:]
             X_test_scaled = artefatos["scaler"].transform(X_test)
-            y_pred = artefatos["classifier"].predict(X_test_scaled)
+            X_test_scaled_df = pd.DataFrame(
+                X_test_scaled, columns=artefatos["features"]
+            )
+            y_pred = artefatos["classifier"].predict(X_test_scaled_df)
             cm = confusion_matrix(y_test, y_pred)
 
             fig_cm, ax_cm = plt.subplots(figsize=(6, 4.5))
@@ -991,13 +994,13 @@ def tela_simulador_edge(artefatos: Dict[str, Any]) -> None:
         st.session_state.preset_vulcantech = "Normal"
 
     b1, b2, b3, b4 = st.columns(4)
-    if b1.button("Simular: Operação Nominal", use_container_width=True):
+    if b1.button("Simular: Operação Nominal", width='stretch'):
         st.session_state.preset_vulcantech = "Normal"
-    if b2.button("Simular: Desgaste de Ferramenta", use_container_width=True):
+    if b2.button("Simular: Desgaste de Ferramenta", width='stretch'):
         st.session_state.preset_vulcantech = "Ferramenta"
-    if b3.button("Simular: Falha Arrefecimento", use_container_width=True):
+    if b3.button("Simular: Falha Arrefecimento", width='stretch'):
         st.session_state.preset_vulcantech = "Arrefecimento"
-    if b4.button("Simular: Desalinhamento Prensa", use_container_width=True):
+    if b4.button("Simular: Desalinhamento Prensa", width='stretch'):
         st.session_state.preset_vulcantech = "Prensa"
 
     presets = {
@@ -1098,12 +1101,13 @@ def tela_simulador_edge(artefatos: Dict[str, Any]) -> None:
 
     df_in = pd.DataFrame([registro_in])[artefatos["features"]]
     X_scaled = artefatos["scaler"].transform(df_in)
-    classe_pred = int(artefatos["classifier"].predict(X_scaled)[0])
-    probabilidades = artefatos["classifier"].predict_proba(X_scaled)[0]
-    eh_anomalia = bool(artefatos["iso_forest"].predict(X_scaled)[0] == -1)
+    X_scaled_df = pd.DataFrame(X_scaled, columns=artefatos["features"])
+    classe_pred = int(artefatos["classifier"].predict(X_scaled_df)[0])
+    probabilidades = artefatos["classifier"].predict_proba(X_scaled_df)[0]
+    eh_anomalia = bool(artefatos["iso_forest"].predict(X_scaled_df)[0] == -1)
 
     # Cálculo físico de OEE
-    oee_res = artefatos["oee_calc"].calcular_oee_preditivo(classe_pred)
+    oee_res = artefatos["oee_calc"].calcular_oee_instancia(classe_pred)
 
     with c_diag:
         st.markdown(
@@ -1304,16 +1308,16 @@ def tela_visao_computacional() -> None:
                     st.caption("1. Imagem Óptica Original")
                     st.image(
                         cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB),
-                        use_container_width=True,
+                        width='stretch',
                     )
                 with col_v2:
                     st.caption("2. Máscara de Bordas (Canny)")
-                    st.image(res["mascara_bordas"], use_container_width=True)
+                    st.image(res["mascara_bordas"], width='stretch')
                 with col_v3:
                     st.caption("3. Delimitação & Poros")
                     st.image(
                         cv2.cvtColor(res["imagem_anotada"], cv2.COLOR_BGR2RGB),
-                        use_container_width=True,
+                        width='stretch',
                     )
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1416,16 +1420,16 @@ def tela_visao_computacional() -> None:
                     st.caption("1. Termografia BGR Original")
                     st.image(
                         cv2.cvtColor(img_t_bgr, cv2.COLOR_BGR2RGB),
-                        use_container_width=True,
+                        width='stretch',
                     )
                 with col_th2:
                     st.caption("2. Máscara HSV Morfológica")
-                    st.image(res_haz["mascara_termica"], use_container_width=True)
+                    st.image(res_haz["mascara_termica"], width='stretch')
                 with col_th3:
                     st.caption("3. Delimitação da HAZ Anotada")
                     st.image(
                         cv2.cvtColor(res_haz["imagem_anotada"], cv2.COLOR_BGR2RGB),
-                        use_container_width=True,
+                        width='stretch',
                     )
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1492,7 +1496,7 @@ def tela_documentacao_teorica() -> None:
                         data=f_pdf.read(),
                         file_name=p_pdf.name,
                         mime="application/pdf",
-                        use_container_width=True,
+                        width='stretch',
                     )
             else:
                 st.caption(f"{rotulo} (não encontrado em {rel_path})")
